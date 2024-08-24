@@ -4,7 +4,7 @@
 
 EAS: https://github.com/syntacore/scr1/blob/master/docs/scr1_eas.pdf
 
-### ICPC
+### IPIC
 
 core/pipeline/ycr_icpc.sv
 
@@ -66,6 +66,113 @@ vd and idx are used the prioroty encoder mentioned later, for searching the lead
 //-------------------------------------------------------------------------------
 ```
 This part is to search the leading one position, it is the same as the priority encoder. 
+
+```
+//------------------------------------------------------------------------------
+// IRQ lines handling
+//------------------------------------------------------------------------------
+
+`ifdef YCR_IPIC_SYNC_EN
+// IRQ lines synchronization
+//------------------------------------------------------------------------------
+
+always_ff @(posedge clk, negedge rst_n) begin
+    if (~rst_n) begin
+        irq_lines_sync <= '0;
+        irq_lines      <= '0;
+    end else begin
+        irq_lines_sync <= soc2ipic_irq_lines_i;
+        irq_lines      <= irq_lines_sync;
+    end
+end
+`else // YCR_IPIC_SYNC_EN
+assign irq_lines = soc2ipic_irq_lines_i;
+`endif // YCR_IPIC_SYNC_EN
+
+```
+
+This is the optional sync stage.
+
+![ipic](img/ipic_0.PNG)
+
+The following code is for interrupt level detection or edge detection. 
+
+```
+// IRQ lines level detection
+//------------------------------------------------------------------------------
+
+assign irq_lvl = irq_lines ^ ipic_iinvr_next;
+
+// IRQ lines edge detection
+//------------------------------------------------------------------------------
+
+always_ff @(negedge rst_n, posedge clk) begin
+    if (~rst_n) begin
+        irq_lines_dly <= '0;
+    end else begin
+        irq_lines_dly <= irq_lines;
+    end
+end
+
+assign irq_edge_detected = (irq_lines_dly ^ irq_lines) & irq_lvl;
+```
+
+The following, first, the reader is csr, csr read the status of IPIC. CSR needs to know a detailed information, for example, the interrupt index in the table, is the interrupt is pending, is it enabled, interrupt mode, is it in service. 
+```
+//------------------------------------------------------------------------------
+// IPIC registers read/write interface
+//------------------------------------------------------------------------------
+
+// Read Logic
+//------------------------------------------------------------------------------
+```
+
+for the write logic 
+```
+// Write logic
+//------------------------------------------------------------------------------
+// Register selection
+always_comb begin
+    cicsr_wr_req = 1'b0;
+    eoi_wr_req   = 1'b0;
+    soi_wr_req   = 1'b0;
+    idxr_wr_req  = 1'b0;
+    icsr_wr_req  = 1'b0;
+    if (csr2ipic_w_req_i) begin
+        case (csr2ipic_addr_i)
+            YCR_IPIC_CISV : begin end // Quiet Read-Only
+            YCR_IPIC_CICSR: cicsr_wr_req = 1'b1;
+            YCR_IPIC_IPR  : begin end
+            YCR_IPIC_ISVR : begin end // Quiet Read-Only
+            YCR_IPIC_EOI  : eoi_wr_req   = 1'b1;
+            YCR_IPIC_SOI  : soi_wr_req   = 1'b1;
+            YCR_IPIC_IDX  : idxr_wr_req  = 1'b1;
+            YCR_IPIC_ICSR : icsr_wr_req  = 1'b1;
+            default : begin // Illegal IPIC register address
+                cicsr_wr_req = 'x;
+                eoi_wr_req   = 'x;
+                soi_wr_req   = 'x;
+                idxr_wr_req  = 'x;
+                icsr_wr_req  = 'x;
+            end
+        endcase
+    end
+end
+```
+
+Quiet read means directly read from ipic2csr_rdata_o. 
+
+from line 395 to 607 are the action of each register, it is based on each register. 
+
+
+
+
+
+
+
+
+
+
 
 
 
