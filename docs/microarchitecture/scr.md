@@ -160,9 +160,32 @@ always_comb begin
 end
 ```
 
-Quiet read means directly read from ipic2csr_rdata_o. 
+Quiet read means directly read from ipic2csr_rdata_o, ipic2csr_rdata_o is send directly to CSR. 
 
-from line 395 to 607 are the action of each register, it is based on each register. 
+from line 395 to 607 are the action of each register, it is based on each type of register
+
+In the CISV register, irq_serv_valid means no void interrupt vector(0x10), the idx is the vector index, which is the low 4-bit. IRQ in service is totally 16. CISV updating strategy is at the starting of the interrupt request or ending of the interrupt request.
+
+In the CICSR register, CICSR needs to know which interrupt is currently served and the status of the current register, is it in pending or enabled.
+
+In the EOI register, writing any value to EOI register and the irq service is valid, means the request is end of interrupt.
+
+Down to the Priority IRQ generation acts like the same function as the functions declared in the local function. Those are to get the index parameter as the priority encoder. 
+
+
+### CSR
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
