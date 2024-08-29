@@ -175,6 +175,8 @@ Down to the Priority IRQ generation acts like the same function as the functions
 
 ### CSR
 
+CSR is a module to keep the status of CPU, especially machine mode. 
+
 
 
 
