@@ -175,7 +175,169 @@ Down to the Priority IRQ generation acts like the same function as the functions
 
 ### CSR
 
-CSR is a module to keep the status of CPU, especially machine mode. 
+CSR is a module to keep the status of CPU, especially machine mode. Let's go to an example of assembly code.
+
+```
+.section .text
+.globl _start
+_start:
+
+    # Reading CSR
+    csrr a0, mtime       # Read mtime into register a0
+    sw a0, mtime_val    # Store the mtime value into memory
+
+    # Writing to CSR
+    li a1, 0xFF        # Load immediate value into a1
+    csrw mtime, a1     # Write the value in a1 to mtime
+
+    # Reading CSR after writing to confirm
+    csrr a0, mtime
+    sw a0, mtime_val_after_write  # Store the new mtime value into memory
+
+    # End of the program
+    j _start
+
+.section .data
+mtime_val: .word 0
+mtime_val_after_write: .word 0
+```
+
+So, firstly, csr is a type of register to peripheral, in the example, csr read the mtime info and write back to mtime.
+
+Another example is how csr handles interrupts. 
+
+```
+.section .text
+.globl _start
+_start:
+
+    # Enable Machine Interrupts in mstatus (set MIE bit)
+    csrr t0, mstatus    # Read mstatus into temporary register t0
+    li t1, 0x8          # Load immediate with the value of MIE bit
+    or t0, t0, t1       # Set the MIE bit in mstatus
+    csrw mstatus, t0    # Write back to mstatus
+
+    # Enable Machine Timer Interrupts in mie (set MTIE bit)
+    csrr t0, mie        # Read mie into temporary register t0
+    li t1, 0x80         # Load immediate with the value of MTIE bit
+    or t0, t0, t1       # Set the MTIE bit in mie
+    csrw mie, t0        # Write back to mie
+
+    # The Machine Timer Interrupt is now enabled.
+    # The system will jump to the Machine Trap-Vector Base-Address (mtvec) when a Machine Timer Interrupt occurs.
+```
+
+In this example, the code first reads the mstatus CSR into a temporary register, sets the MIE bit (bit 3) to enable machine interrupts, and then writes the value back to the mstatus CSR. It then reads the mie CSR, sets the MTIE bit (bit 7) to enable machine timer interrupts, and writes the value back to the mie CSR.
+
+When a machine timer interrupt occurs, the system will jump to the address stored in the mtvec CSR. You would need to set up the mtvec register and provide an interrupt service routine at the specified address. 
+
+Another example is how csr handles trap or exceptions:
+
+```
+.section .text
+.globl _start
+_start:
+
+    # Set up the Machine Trap-Vector Base-Address (mtvec) to point to our trap handler
+    la t0, trap_handler
+    csrw mtvec, t0
+
+    # An illegal instruction to cause a trap
+    .word 0x0
+
+trap_handler:
+    # Save the registers that we're going to use
+    addi sp, sp, -16
+    sw ra, 12(sp)
+    sw a0, 8(sp)
+
+    # Load the mcause CSR into a0 to find the cause of the trap
+    csrr a0, mcause
+
+    # Print the mcause value (you'll need to provide the print_dword function)
+    call print_dword
+
+    # Load the mtval CSR into a0 to find additional information about the trap
+    csrr a0, mtval
+
+    # Print the mtval value
+    call print_dword
+
+    # Restore the saved registers and return from the trap handler
+    lw a0, 8(sp)
+    lw ra, 12(sp)
+    addi sp, sp, 16
+    mret
+
+.section .data
+```
+
+From the software perspective, csr is a kind of module to keep the status of CPU, did the following: 1. peripheral register 2. interrupt 3. handle the execptions. If hypervisor included, cases would be harder. SCRv1 has no hypervisor.  
+
+Below is the hardware design of csr module.
+
+Here are the inputs and outputs description
+
+```
+
+input   logic                                       soc2csr_irq_ext_i,          // External interrupt request
+input   logic                                       soc2csr_irq_soft_i,         // Software interrupt request
+input   logic                                       soc2csr_irq_mtimer_i,       // External timer interrupt request
+```
+
+external interrupt, for example, is the keyboard or mouse input. Software interrupt means some program finished. Timer interrupt is the 1ms or 1us timer.
+
+```
+// Memory-mapped external timer
+input   logic [63:0]                                soc2csr_mtimer_val_i,       // External timer value
+```
+
+Timer value is the timer value
+
+```
+// MHARTID fuse
+input   logic [`YCR_XLEN-1:0]                      soc2csr_fuse_mhartid_i,     // MHARTID fuse
+```
+mhartid is the register value of the current thread id.
+
+```
+// CSR <-> EXU read/write interface
+input   logic                                       exu2csr_r_req_i,            // CSR read/write address
+input   logic [YCR_CSR_ADDR_WIDTH-1:0]             exu2csr_rw_addr_i,          // CSR read request
+output  logic [`YCR_XLEN-1:0]                      csr2exu_r_data_o,           // CSR read data
+input   logic                                       exu2csr_w_req_i,            // CSR write request
+input   type_ycr_csr_cmd_sel_e                     exu2csr_w_cmd_i,            // CSR write command
+input   logic [`YCR_XLEN-1:0]                      exu2csr_w_data_i,           // CSR write data
+output  logic                                       csr2exu_rw_exc_o,           // CSR read/write access exception
+
+// CSR <-> EXU event interface
+input   logic                                       exu2csr_take_irq_i,         // Take IRQ trap
+input   logic                                       exu2csr_take_exc_i,         // Take exception trap
+input   logic                                       exu2csr_mret_update_i,      // MRET update CSR
+input   logic                                       exu2csr_mret_instr_i,       // MRET instruction
+input   logic [YCR_EXC_CODE_WIDTH_E-1:0]          exu2csr_exc_code_i,         // Exception code (see ycr_arch_types.svh) - cp.7
+input   logic [`YCR_XLEN-1:0]                      exu2csr_trap_val_i,         // Trap value
+output  logic                                       csr2exu_irq_o,              // IRQ request
+output  logic                                       csr2exu_ip_ie_o,            // Some IRQ pending and locally enabled
+output  logic                                       csr2exu_mstatus_mie_up_o,   // MSTATUS or MIE update in the current cycle
+
+```
+Execution unit in ycr core is essential. There are two kinds of interface, one is read/write interface, read/write interface allows other unit to write, set or clear csr status, the other kind of interface is event interface, for example, some csr event, 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
