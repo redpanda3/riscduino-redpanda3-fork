@@ -322,7 +322,55 @@ output  logic                                       csr2exu_ip_ie_o,            
 output  logic                                       csr2exu_mstatus_mie_up_o,   // MSTATUS or MIE update in the current cycle
 
 ```
-Execution unit in ycr core is essential. There are two kinds of interface, one is read/write interface, read/write interface allows other unit to write, set or clear csr status, the other kind of interface is event interface, for example, some csr event, 
+Execution unit in ycr core is essential. There are two kinds of interface, one is read/write interface, the read/write interface allows other unit to write, set or clear csr status, the other kind of interface is event interface, for example, some csr event. for example,  exception,  machine return(MRET), trap. 
+
+```
+`ifdef YCR_IPIC_EN
+    // CSR <-> IPIC interface
+    output  logic                                       csr2ipic_r_req_o,           // IPIC read request
+    output  logic                                       csr2ipic_w_req_o,           // IPIC write request
+    output  logic [2:0]                                 csr2ipic_addr_o,            // IPIC address
+    output  logic [`YCR_XLEN-1:0]                      csr2ipic_wdata_o,           // IPIC write data
+    input   logic [`YCR_XLEN-1:0]                      ipic2csr_rdata_i,           // IPIC read data
+`endif // YCR_IPIC_EN
+
+`ifdef YCR_DBG_EN
+    // CSR <-> HDU interface
+    output  logic                                       csr2hdu_req_o,              // Request to HDU
+    output  type_ycr_csr_cmd_sel_e                     csr2hdu_cmd_o,              // HDU command
+    output  logic [YCR_HDU_DEBUGCSR_ADDR_WIDTH-1:0]    csr2hdu_addr_o,             // HDU address
+    output  logic [`YCR_XLEN-1:0]                      csr2hdu_wdata_o,            // HDU write data
+    input   logic [`YCR_XLEN-1:0]                      hdu2csr_rdata_i,            // HDU read data
+    input   type_ycr_csr_resp_e                        hdu2csr_resp_i,             // HDU response
+    input   logic                                       hdu2csr_no_commit_i,        // Forbid instruction commitment
+`endif // YCR_DBG_EN
+
+`ifdef YCR_TDU_EN
+    // CSR <-> TDU interface
+    output  logic                                       csr2tdu_req_o,              // Request to TDU
+    output  type_ycr_csr_cmd_sel_e                     csr2tdu_cmd_o,              // TDU command
+    output  logic [YCR_CSR_ADDR_TDU_OFFS_W-1:0]        csr2tdu_addr_o,             // TDU address
+    output  logic [`YCR_XLEN-1:0]                      csr2tdu_wdata_o,            // TDU write data
+    input   logic [`YCR_XLEN-1:0]                      tdu2csr_rdata_i,            // TDU read data
+    input   type_ycr_csr_resp_e                        tdu2csr_resp_i,             // TDU response
+`endif // YCR_TDU_EN
+```
+
+Those optional interfaces are for IPIC, HDU, and TDU.
+
+```
+    // CSR <-> EXU PC interface
+`ifndef YCR_CSR_REDUCED_CNT
+    input   logic                                       exu2csr_instret_no_exc_i,   // Instruction retired (without exception)
+`endif // YCR_CSR_REDUCED_CNT
+    input   logic [`YCR_XLEN-1:0]                      exu2csr_pc_curr_i,          // Current PC
+    input   logic [`YCR_XLEN-1:0]                      exu2csr_pc_next_i,          // Next PC
+    output  logic [`YCR_XLEN-1:0]                      csr2exu_new_pc_o   
+```
+
+Those are the interfaces between exution units to PC.
+
+
 
 
 

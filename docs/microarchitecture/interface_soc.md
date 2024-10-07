@@ -4,7 +4,7 @@
 ### Reg Bus Interface
 
 IO or peripherals could be configured by wishbone bus. Below is the common register bus interface. reg_cs is 'chip select'. reg_be is 'byte enable'. 
-reg_ack is pulled up when reg_rdata is ready, then pulled down. 
+reg_ack is pulled up in the second cycle when reg_rdata is ready, then pulled down. 
 
 ```
 input logic           reg_cs               //register chip select
@@ -18,7 +18,8 @@ output logic [31:0]   reg_rdata,           //register read data
 output logic          reg_ack,             //register acknowledge
 ```
 
-
+example: reg bus interface in pinmux 
+![example](img/reg_pinmux.png)
 
 
 
@@ -159,6 +160,12 @@ In write cycles, the data flows from the master to the slave (wbs_dat_i).
 In read cycles, the data flows from the slave to the master (wbs_dat_o).
 Conclusion
 The timing diagrams above illustrate the interaction between the master and slave using the Wishbone bus signals you've provided. During a bus cycle, the master controls the flow by asserting wbs_cyc_i and wbs_stb_i, setting up the address, data, and control signals (wbs_adr_i, wbs_dat_i, wbs_we_i, wbs_sel_i), and waits for the slave to acknowledge with wbs_ack_o. The slave responds by processing the request and signaling completion via wbs_ack_o, and in the case of read cycles, providing the requested data on wbs_dat_o.
+
+
+### picorv32_pcpi
+
+PCPI is a kind of internal interface within the management core, the management core refers to picorv32. It is useful to debug in the picorv32. More details please go to https://github.com/YosysHQ/picorv32?tab=readme-ov-file#pico-co-processor-interface-pcpi. 
+
 
 
 
